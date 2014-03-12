@@ -11,5 +11,8 @@
     "markdown"
   ],
   "author": "Philip Borenstein",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "tokenizer": "^1.1.2"
+  }
 }
