@@ -1,0 +1,2088 @@
+{composition-setup}
+
+The Ubuntu Certified Images are designed by Canonical to be optimized for various cloud infrastructures, including the Joyent Cloud.
+
+The Certified Images support [cloud-init|http://cloudinit.readthedocs.org/en/latest/] to provide a uniform boot-time setup.  Joyent Cloud boot script {{user-script}} metadata is also available to do per-boot scripting.
+
+Joyent-supplied Ubuntu images prior to these Certified Images have some basic differences. The [Summary of Differences|#Summary of Differences] section summarizes those differences.
+
+
+{toc}
+
+h1. About the Certified Images
+
+The goal of the Ubuntu Certified Images is to work the same way regardless of the cloud infrastructure hosting them. This section describes some basic differences between the Certified Images and the legacy Joyent-supplied Ubuntu images.
+
+
+h2. Default User
+
+In Certified Images, the default user is {{ubuntu}}. You cannot log in as {{root}}. However, the {{ubuntu}} user is authorized to use {{sudo}} to do things as root.
+
+
+
+h2. Default Disk Layout
+
+In Certified images, the ephemeral device (data disk) is mounted at {{/mnt}}. In  Joyent-supplied images, the ephemeral device is mounted at {{/data}}. The following output of the {{df}} command shows the default file system in a Certified Image.
+
+{code:lang=none}
+$ df -h
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/vda1       7.5G  745M  6.4G  11% /
+none            4.0K     0  4.0K   0% /sys/fs/cgroup
+udev            493M  4.0K  493M   1% /dev
+tmpfs           100M  360K  100M   1% /run
+none            5.0M     0  5.0M   0% /run/lock
+none            498M     0  498M   0% /run/shm
+none            100M     0  100M   0% /run/user
+/dev/vdb         33G  177M   31G   1% /mnt
+{code}
+
+
+h2. Boot-Time Setup
+
+The Certified images can use both cloud-init and Joyent boot-time setup.
+
+Initialization data (like cloud-init) is provided as metadata when the instance is created. You can provide this metadata CLI command option {{\-\-metadata\-file}} (or {{--script}} for Joyent images).
+
+
+Cloud-init data is provided as metadata with the {{cloud-init:user-data}} key. Joyent boot-time data is supplied as metadata with the {{user-data}} and {{user-script}} keys.
+
+   * {{cloud-init:user-data}} is consumed _once per instance_
+   * user-script is consumed each boot
+   * user-data is consumed each boot
+
+Keep in mind that you may be able to log in to your instance _before cloud-init is finished_. Complex cloud-init or user-script scripts could take several minutes to complete. Please plan accordingly.
+
+h3. cloud-init Examples
+
+cloud-init is the Ubuntu package that handles first-boot initialization of a cloud instance. You can learn more information about cloud-init [here|https://help.ubuntu.com/community/CloudInit] and in the [cloud-init documentation|http://cloudinit.readthedocs.org/en/latest/].
+
+These examples use the [CloudAPI command-line interface|Working with CloudAPI]. To run these examples, make sure that you are using at least version  7.2.0 of the CloudAPI tools.
+
+
+h4. cloud-init with a shell script
+
+Anything in the {{cloud-init:user-data}}, runs once per instance on the first boot. In this example, the shell script {{ubuntu.cloud.sh}} will run on first boot.
+
+{{ubuntu.cloud.sh}} does nothing more than to write a message with the current time in {{/root/output.txt}}. It should be in the same directory that you run the {{sdc-createmachine}} in.
+
+{code:lang=none|title=ubuntu.cloud.sh}
+#! /usr/bin/env bash
+echo "Hello World.  The time is now $(date -R)!" | tee /root/output.txt
+{code}
+
+To provision an Ubuntu instance, you would use the {{sdc-createmachine}} command like this. {{46407334-9096-40ef-bb72-6f9a094f0507}} is the UUID of the the Ubuntu 13.10 image.
+
+{code:lang=none}
+$ sdc-createmachine --dataset 46407334-9096-40ef-bb72-6f9a094f0507 \
+                    --package g3-standard-1-kvm \
+                    --metadata-file cloud-init:user-data=./ubuntu.cloud.sh
+{code}
+
+After the instance is provisioned, you can log in to it and verify that the script ran:
+
+{code:lang=none|title=output.txt}
+$ sudo cat /root/output.txt
+Hello World.  The time is now Fri, 14 Feb 2014 23:15:13 +0000!
+{code}
+
+
+h4. cloud-init with a cloud-config command
+
+cloud-init can also take a YAML file that describes how to configure the instance. In this example, {{cloud.init}} is a cloud-init config file that:
+
+* updates the package list
+* upgrades installed packages
+* installs the apache2 package
+
+
+{code:lang=none|title=cloud.init}
+#cloud-config
+
+apt_update: true
+apt_upgrade: true
+packages:
+  - apache2
+{code}
+
+To provision an Ubuntu instance, you would use the {{sdc-createmachine}} command like this, using the name of the config file.
+
+{code:lang=none}
+  sdc-createmachine --dataset 46407334-9096-40ef-bb72-6f9a094f0507 \
+                    --package g3-standard-1-kvm \
+                    --metadata-file cloud-init:user-data=./cloud.init
+{code}
+
+After provisioning, you can check that the apache2 packages were installed:
+
+{code:lang=none}
+$ dpkg -l | grep apache
+ii  apache2       2.4.6-2ubuntu2.1  amd64  Apache HTTP Server
+ii  apache2-bin   2.4.6-2ubuntu2.1  amd64  Apache HTTP Server (binary files and modules)
+ii  apache2-data  2.4.6-2ubuntu2.1  all    Apache HTTP Server (common files)
+{code}
+
+
+
+h3. Joyent user-script Example
+
+Any script provided as a user script, will run every time the instance boots. The user script can be provided as the name of a file to the {{--script}} option to {{sdc-createmachine}}, or as the value of the {{user-script}} metadata key.
+
+In this example, the script {{userscript.sh}} will run when the instance is provisioned as well as on every reboot.
+
+{code:lang=none|title=userscript.sh}
+#! /usr/bin/env bash
+echo "Hello World.  The time is now $(date -R)!" | tee /root/joyoutput.txt
+
+{code}
+
+Provision the instance:
+
+{code:lang=none}
+sdc-createmachine --dataset 46407334-9096-40ef-bb72-6f9a094f0507 \
+                  --package g3-standard-1-kvm \
+                  --script ./userscript.sh
+{code}
+
+After provisioning, check the output.
+
+{code:lang=none}
+ubuntu@eeac1ea5-0c7f-e445-febc-9ba2883dfe7b:~$ sudo cat /root/joyoutput.txt
+Hello World.  The time is now Fri, 14 Feb 2014 22:46:50 +0000!
+{code}
+
+If you were to reboot the instance a few days later, you would see this:
+
+{code:lang=none}
+ubuntu@eeac1ea5-0c7f-e445-febc-9ba2883dfe7b:~$ sudo cat /root/joyoutput.txt
+Hello World.  The time is now Tue, 18 Feb 2014 17:12:17 +0000!
+{code}
+
+
+
+h3. Summary of Differences
+
+This table summarizes the difference between the Canonical Certified images and the Joyent-supplied images.
+
+| &nbsp;     || Joyent-supplied || Canonical-supplied ||
+| *Default user* |  root   |  ubuntu    |
+| *Disk layout*  | {{/tmp}} on separate partition \\ {{/data}} is the mount point for the ephemeral device \\ staticaly configured fstab | {{/tmp}} on rootfs \\ {{/mnt}} is the mount point for the ephemeral device \\ dynamic mounts |
+| *Boot-time setup | {{user-script}} metadata | [cloud-init|http://cloudinit.readthedocs.org/en/latest/] |
+| *Kernel*      | Locked | Uses stock Ubuntu virtual kernel |
+
+
+
+
+h1. The Canonical Ubuntu Certified Images
+
+
+h2. 13.10 20140227
+
+||Name|ubuntu-certified-13.10|
+||Description|Ubuntu 13.10 (20140227 64-bit). Certified Ubuntu Server Cloud Image from Canonical.|
+||UUID|{{049dfe64-6c37-4b88-8e89-4b8aa0f129f2}}|
+
+{code:lang=none}
+$  lsb_release -a
+No LSB modules are available.
+Distributor ID:	Ubuntu
+Description:	Ubuntu 13.10
+Release:	13.10
+Codename:	saucy
+{code}
+
+
+
+h3. What's New in This Image
+
+* Resolved an issue where ssh host keys are not generated when instance is provisioned with one interface.
+* Resolved an issue where the {{hostid}} command always returns "00000000" rather than a unique value.
+* Resolved an issue where the {{sudo}} command produces a "unable to resolve host.." warning.
+* [Ubuntu 13.10 Release Notes|https://wiki.ubuntu.com/SaucySalamander/ReleaseNotes]
+
+
+h3. Packages Installed in This Image
+
+{code:lang=none}
+apt						install
+aptitude					install
+bzip2						install
+curl						install
+dpkg						install
+gzip						install
+login-duo					install
+openssl						install
+perl						install
+python						install
+python2.7					install
+python3						install
+python3.3					install
+sudo						install
+wget						install
+{code}
+
+{toggle-cloak:id=ubuntucert1310-20140227}For a detailed list of every package installed with this image, click here.
+{cloak:id=ubuntucert1310-20140227|visible=false}
+{code:lang=none}
+$ dpkg --get-selections
+accountsservice					install
+acpid						install
+adduser						install
+apparmor					install
+apport						install
+apport-symptoms					install
+apt						install
+apt-transport-https				install
+apt-utils					install
+apt-xapian-index				install
+aptitude					install
+aptitude-common					install
+at						install
+base-files					install
+base-passwd					install
+bash						install
+bash-completion					install
+bc						install
+bind9-host					install
+bsdmainutils					install
+bsdutils					install
+busybox-initramfs				install
+busybox-static					install
+byobu						install
+bzip2						install
+ca-certificates					install
+cloud-guest-utils				install
+cloud-init					install
+command-not-found				install
+command-not-found-data				install
+console-setup					install
+coreutils					install
+cpio						install
+cron						install
+cryptsetup					install
+cryptsetup-bin					install
+curl						install
+dash						install
+dbus						install
+debconf						install
+debconf-i18n					install
+debianutils					install
+dh-python					install
+diffutils					install
+dmidecode					install
+dmsetup						install
+dnsutils					install
+dosfstools					install
+dpkg						install
+e2fslibs:amd64					install
+e2fsprogs					install
+ed						install
+eject						install
+ethtool						install
+euca2ools					install
+file						install
+findutils					install
+fonts-ubuntu-font-family-console		install
+friendly-recovery				install
+ftp						install
+fuse						install
+gawk						install
+gcc-4.8-base:amd64				install
+gdisk						install
+geoip-database					install
+gettext-base					install
+gir1.2-glib-2.0					install
+gnupg						install
+gpgv						install
+grep						install
+groff-base					install
+grub-common					install
+grub-gfxpayload-lists				install
+grub-pc						install
+grub-pc-bin					install
+grub2-common					install
+gzip						install
+hdparm						install
+hostname					install
+ifupdown					install
+info						install
+initramfs-tools					install
+initramfs-tools-bin				install
+initscripts					install
+insserv						install
+install-info					install
+iproute2					install
+iptables					install
+iputils-ping					install
+iputils-tracepath				install
+irqbalance					install
+isc-dhcp-client					install
+isc-dhcp-common					install
+iso-codes					install
+joyent-mdata-client				install
+kbd						install
+keyboard-configuration				install
+klibc-utils					install
+kmod						install
+krb5-locales					install
+landscape-client				install
+landscape-common				install
+language-selector-common			install
+laptop-detect					install
+less						install
+libaccountsservice0				install
+libacl1:amd64					install
+libapparmor-perl				install
+libapparmor1					install
+libapt-inst1.5:amd64				install
+libapt-pkg4.12:amd64				install
+libasn1-8-heimdal:amd64				install
+libasprintf0c2:amd64				install
+libattr1:amd64					install
+libaudit-common					install
+libaudit1:amd64					install
+libbind9-90					install
+libblkid1:amd64					install
+libboost-iostreams1.53.0:amd64			install
+libbsd0:amd64					install
+libbz2-1.0:amd64				install
+libc-bin					install
+libc6:amd64					install
+libcap-ng0					install
+libcap2:amd64					install
+libck-connector0:amd64				install
+libclass-accessor-perl				install
+libclass-isa-perl				install
+libcomerr2:amd64				install
+libcryptsetup4					install
+libcurl3:amd64					install
+libcurl3-gnutls:amd64				install
+libcwidget3					install
+libdb5.1:amd64					install
+libdbus-1-3:amd64				install
+libdbus-glib-1-2:amd64				install
+libdevmapper1.02.1:amd64			install
+libdns99					install
+libdrm2:amd64					install
+libduo3:amd64					install
+libedit2:amd64					install
+libelf1:amd64					install
+libept1.4.12					install
+libevent-2.0-5:amd64				install
+libexpat1:amd64					install
+libffi6:amd64					install
+libfreetype6:amd64				install
+libfribidi0:amd64				install
+libfuse2:amd64					install
+libgc1c2:amd64					install
+libgcc1:amd64					install
+libgck-1-0:amd64				install
+libgcr-3-common					install
+libgcr-base-3-1:amd64				install
+libgcrypt11:amd64				install
+libgdbm3:amd64					install
+libgeoip1:amd64					install
+libgirepository-1.0-1				install
+libglib2.0-0:amd64				install
+libglib2.0-data					install
+libgnutls-openssl27:amd64			install
+libgnutls26:amd64				install
+libgpg-error0:amd64				install
+libgpm2:amd64					install
+libgssapi-krb5-2:amd64				install
+libgssapi3-heimdal:amd64			install
+libhcrypto4-heimdal:amd64			install
+libheimbase1-heimdal:amd64			install
+libheimntlm0-heimdal:amd64			install
+libhx509-5-heimdal:amd64			install
+libicu48:amd64					install
+libidn11:amd64					install
+libio-string-perl				install
+libisc95					install
+libisccc90					install
+libisccfg90					install
+libiw30:amd64					install
+libjson-c2:amd64				install
+libjson0:amd64					install
+libk5crypto3:amd64				install
+libkeyutils1:amd64				install
+libklibc					install
+libkmod2:amd64					install
+libkrb5-26-heimdal:amd64			install
+libkrb5-3:amd64					install
+libkrb5support0:amd64				install
+libldap-2.4-2:amd64				install
+liblocale-gettext-perl				install
+liblockfile-bin					install
+liblockfile1:amd64				install
+liblwres90					install
+liblzma5:amd64					install
+libmagic1:amd64					install
+libmount1:amd64					install
+libncurses5:amd64				install
+libncursesw5:amd64				install
+libnewt0.52:amd64				install
+libnfnetlink0:amd64				install
+libnih-dbus1:amd64				install
+libnih1:amd64					install
+libnl-3-200:amd64				install
+libnl-genl-3-200:amd64				install
+libnss-myhostname:amd64				install
+libnuma1					install
+libp11-kit0:amd64				install
+libpam-modules:amd64				install
+libpam-modules-bin				install
+libpam-runtime					install
+libpam-systemd:amd64				install
+libpam0g:amd64					install
+libparse-debianchangelog-perl			install
+libparted0debian1:amd64				install
+libpcap0.8:amd64				install
+libpci3:amd64					install
+libpcre3:amd64					install
+libpcsclite1:amd64				install
+libpipeline1:amd64				install
+libplymouth2:amd64				install
+libpng12-0:amd64				install
+libpolkit-agent-1-0:amd64			install
+libpolkit-backend-1-0:amd64			install
+libpolkit-gobject-1-0:amd64			install
+libpopt0:amd64					install
+libprocps0:amd64				install
+libpython-stdlib:amd64				install
+libpython2.7:amd64				install
+libpython2.7-minimal:amd64			install
+libpython2.7-stdlib:amd64			install
+libpython3-stdlib:amd64				install
+libpython3.3-minimal:amd64			install
+libpython3.3-stdlib:amd64			install
+libreadline5:amd64				install
+libreadline6:amd64				install
+libroken18-heimdal:amd64			install
+librtmp0:amd64					install
+libsasl2-2:amd64				install
+libsasl2-modules:amd64				install
+libsasl2-modules-db:amd64			install
+libselinux1:amd64				install
+libsemanage-common				install
+libsemanage1:amd64				install
+libsepol1:amd64					install
+libsigc++-2.0-0c2a:amd64			install
+libsigsegv2:amd64				install
+libslang2:amd64					install
+libsqlite3-0:amd64				install
+libss2:amd64					install
+libssl1.0.0:amd64				install
+libstdc++6:amd64				install
+libsub-name-perl				install
+libswitch-perl					install
+libsystemd-daemon0:amd64			install
+libsystemd-login0:amd64				install
+libtasn1-3:amd64				install
+libtext-charwidth-perl				install
+libtext-iconv-perl				install
+libtext-wrapi18n-perl				install
+libtimedate-perl				install
+libtinfo5:amd64					install
+libudev1:amd64					install
+libusb-0.1-4:amd64				install
+libusb-1.0-0:amd64				install
+libustr-1.0-1:amd64				install
+libuuid1:amd64					install
+libwhoopsie0					install
+libwind0-heimdal:amd64				install
+libwrap0:amd64					install
+libx11-6:amd64					install
+libx11-data					install
+libxapian22					install
+libxau6:amd64					install
+libxcb1:amd64					install
+libxdmcp6:amd64					install
+libxext6:amd64					install
+libxml2:amd64					install
+libxmuu1:amd64					install
+libxtables10					install
+libyaml-0-2:amd64				install
+linux-headers-3.11.0-17				install
+linux-headers-3.11.0-17-generic			install
+linux-headers-generic				install
+linux-headers-virtual				install
+linux-image-3.11.0-17-generic			install
+linux-image-virtual				install
+linux-virtual					install
+locales						install
+lockfile-progs					install
+login						install
+login-duo					install
+logrotate					install
+lsb-base					install
+lsb-release					install
+lshw						install
+lsof						install
+ltrace						install
+makedev						install
+man-db						install
+manpages					install
+mawk						install
+memtest86+					install
+mime-support					install
+mlocate						install
+module-init-tools				install
+mount						install
+mountall					install
+mtr-tiny					install
+multiarch-support				install
+nano						install
+ncurses-base					install
+ncurses-bin					install
+ncurses-term					install
+net-tools					install
+netbase						install
+netcat-openbsd					install
+ntfs-3g						install
+ntpdate						install
+openssh-client					install
+openssh-server					install
+openssl						install
+os-prober					install
+overlayroot					install
+parted						install
+passwd						install
+patch						install
+pciutils					install
+perl						install
+perl-base					install
+perl-modules					install
+plymouth					install
+plymouth-theme-ubuntu-text			install
+policykit-1					install
+popularity-contest				install
+powermgmt-base					install
+ppp						install
+pppconfig					install
+pppoeconf					install
+procps						install
+psmisc						install
+python						install
+python-apt					install
+python-apt-common				install
+python-boto					install
+python-chardet					install
+python-cheetah					install
+python-configobj				install
+python-debian					install
+python-gdbm					install
+python-json-patch				install
+python-json-pointer				install
+python-m2crypto					install
+python-minimal					install
+python-newt					install
+python-oauth					install
+python-openssl					install
+python-pam					install
+python-pkg-resources				install
+python-prettytable				install
+python-pycurl					install
+python-requests					install
+python-serial					install
+python-six					install
+python-twisted-bin				install
+python-twisted-core				install
+python-twisted-names				install
+python-twisted-web				install
+python-urllib3					install
+python-xapian					install
+python-yaml					install
+python-zope.interface				install
+python2.7					install
+python2.7-minimal				install
+python3						install
+python3-apport					install
+python3-apt					install
+python3-commandnotfound				install
+python3-dbus					install
+python3-distupgrade				install
+python3-gdbm:amd64				install
+python3-gi					install
+python3-minimal					install
+python3-problem-report				install
+python3-software-properties			install
+python3-update-manager				install
+python3.3					install
+python3.3-minimal				install
+readline-common					install
+resolvconf					install
+rsync						install
+rsyslog						install
+screen						install
+sed						install
+sensible-utils					install
+sgml-base					install
+shared-mime-info				install
+software-properties-common			install
+ssh-import-id					install
+strace						install
+sudo						install
+systemd-services				install
+systemd-shim					install
+sysv-rc						install
+sysvinit-utils					install
+tar						install
+tasksel						install
+tasksel-data					install
+tcpd						install
+tcpdump						install
+telnet						install
+time						install
+tmux						install
+tzdata						install
+ubuntu-keyring					install
+ubuntu-minimal					install
+ubuntu-release-upgrader-core			install
+ubuntu-standard					install
+ucf						install
+udev						install
+ufw						install
+unattended-upgrades				install
+update-manager-core				install
+update-notifier-common				install
+upstart						install
+ureadahead					install
+usbutils					install
+util-linux					install
+uuid-runtime					install
+vim						install
+vim-common					install
+vim-runtime					install
+vim-tiny					install
+w3m						install
+wget						install
+whiptail					install
+whoopsie					install
+wireless-tools					install
+wpasupplicant					install
+xauth						install
+xkb-data					install
+xml-core					install
+xz-utils					install
+zlib1g:amd64					install
+{code}
+{cloak}
+
+
+
+
+h2. 12.04 20140227
+
+||Name|ubuntu-certified-12.04|
+||Description|Ubuntu 12.04.4 LTS (20140227 64-bit). Certified Ubuntu Server Cloud Image from Canonical.|
+||UUID|{{e28711b3-7f9c-47a7-be7f-ce07e9a99394}}|
+
+{code:lang=none}
+$ lsb_release -a
+No LSB modules are available.
+Distributor ID:	Ubuntu
+Description:	Ubuntu 12.04.4 LTS
+Release:	12.04
+Codename:	precise
+{code}
+
+
+
+h3. What's New in This Image
+
+* Resolved an issue where ssh host keys are not generated when instance is provisioned with one interface.
+* Resolved an issue where the {{hostid}} command always returns "00000000" rather than a unique value.
+* Resolved an issue where the {{sudo}} command produces a "unable to resolve host.." warning.
+* [Ubuntu 12.04 LTS Release Notes|https://wiki.ubuntu.com/PrecisePangolin/ReleaseNotes/12.04]
+
+
+h3. Packages Installed in This Image
+
+{code:lang=none}
+apt
+aptitude
+bash
+bzip2
+curl
+dpkg
+gzip
+login-duo
+openssl
+perl
+python
+sudo
+wget
+{code}
+
+{toggle-cloak:id=ubuntucert1204-20140227}For a detailed list of every package installed with this image, click here.
+{cloak:id=ubuntucert1204-20140227|visible=false}
+{code:lang=none}
+$ dpkg --get-selections
+accountsservice					install
+acpid						install
+adduser						install
+apparmor					install
+apport						install
+apport-symptoms					install
+apt						install
+apt-transport-https				install
+apt-utils					install
+apt-xapian-index				install
+aptitude					install
+at						install
+base-files					install
+base-passwd					install
+bash						install
+bash-completion					install
+bc						install
+bind9-host					install
+bsdmainutils					install
+bsdutils					install
+busybox-initramfs				install
+busybox-static					install
+byobu						install
+bzip2						install
+ca-certificates					install
+cloud-init					install
+cloud-initramfs-growroot			install
+cloud-initramfs-rescuevol			install
+cloud-utils					install
+command-not-found				install
+command-not-found-data				install
+console-setup					install
+coreutils					install
+cpio						install
+crda						install
+cron						install
+curl						install
+dash						install
+dbus						install
+debconf						install
+debconf-i18n					install
+debianutils					install
+diffutils					install
+dmidecode					install
+dmsetup						install
+dnsutils					install
+dosfstools					install
+dpkg						install
+e2fslibs					install
+e2fsprogs					install
+ed						install
+eject						install
+euca2ools					install
+file						install
+findutils					install
+fonts-ubuntu-font-family-console		install
+friendly-recovery				install
+ftp						install
+fuse						install
+gcc-4.6-base					install
+geoip-database					install
+gettext-base					install
+gir1.2-glib-2.0					install
+gnupg						install
+gpgv						install
+grep						install
+groff-base					install
+grub-common					install
+grub-gfxpayload-lists				install
+grub-pc						install
+grub-pc-bin					install
+grub2-common					install
+gzip						install
+hdparm						install
+hostname					install
+ifupdown					install
+info						install
+initramfs-tools					install
+initramfs-tools-bin				install
+initscripts					install
+insserv						install
+install-info					install
+iproute						install
+iptables					install
+iputils-ping					install
+iputils-tracepath				install
+irqbalance					install
+isc-dhcp-client					install
+isc-dhcp-common					install
+iso-codes					install
+iw						install
+joyent-mdata-client				install
+kbd						install
+keyboard-configuration				install
+klibc-utils					install
+krb5-locales					install
+landscape-client				install
+landscape-common				install
+language-selector-common			install
+laptop-detect					install
+less						install
+libaccountsservice0				install
+libacl1						install
+libapt-inst1.4					install
+libapt-pkg4.12					install
+libasn1-8-heimdal				install
+libattr1					install
+libbind9-80					install
+libblkid1					install
+libboost-iostreams1.46.1			install
+libbsd0						install
+libbz2-1.0					install
+libc-bin					install
+libc6						install
+libcap-ng0					install
+libclass-accessor-perl				install
+libclass-isa-perl				install
+libcomerr2					install
+libcurl3					install
+libcurl3-gnutls					install
+libcwidget3					install
+libdb5.1					install
+libdbus-1-3					install
+libdbus-glib-1-2				install
+libdevmapper1.02.1				install
+libdns81					install
+libdrm-intel1					install
+libdrm-nouveau1a				install
+libdrm-radeon1					install
+libdrm2						install
+libduo3						install
+libedit2					install
+libelf1						install
+libept1.4.12					install
+libevent-2.0-5					install
+libexpat1					install
+libffi6						install
+libfreetype6					install
+libfribidi0					install
+libfuse2					install
+libgc1c2					install
+libgcc1						install
+libgcrypt11					install
+libgdbm3					install
+libgeoip1					install
+libgirepository-1.0-1				install
+libglib2.0-0					install
+libgmp10					install
+libgnutls26					install
+libgpg-error0					install
+libgpm2						install
+libgssapi-krb5-2				install
+libgssapi3-heimdal				install
+libhcrypto4-heimdal				install
+libheimbase1-heimdal				install
+libheimntlm0-heimdal				install
+libhx509-5-heimdal				install
+libidn11					install
+libio-string-perl				install
+libisc83					install
+libisccc80					install
+libisccfg82					install
+libiw30						install
+libjs-jquery					install
+libk5crypto3					install
+libkeyutils1					install
+libklibc					install
+libkrb5-26-heimdal				install
+libkrb5-3					install
+libkrb5support0					install
+libldap-2.4-2					install
+liblocale-gettext-perl				install
+liblockfile-bin					install
+liblockfile1					install
+liblwres80					install
+liblzma5					install
+libmagic1					install
+libmount1					install
+libncurses5					install
+libncursesw5					install
+libnewt0.52					install
+libnfnetlink0					install
+libnih-dbus1					install
+libnih1						install
+libnl-3-200					install
+libnl-genl-3-200				install
+libnss-myhostname				install
+libp11-kit0					install
+libpam-modules					install
+libpam-modules-bin				install
+libpam-runtime					install
+libpam0g					install
+libparse-debianchangelog-perl			install
+libparted0debian1				install
+libpcap0.8					install
+libpci3						install
+libpciaccess0					install
+libpcre3					install
+libpcsclite1					install
+libpipeline1					install
+libplymouth2					install
+libpng12-0					install
+libpolkit-gobject-1-0				install
+libpopt0					install
+libpython2.7					install
+libreadline6					install
+libroken18-heimdal				install
+librtmp0					install
+libsasl2-2					install
+libsasl2-modules				install
+libselinux1					install
+libsigc++-2.0-0c2a				install
+libslang2					install
+libsqlite3-0					install
+libss2						install
+libssl1.0.0					install
+libstdc++6					install
+libsub-name-perl				install
+libswitch-perl					install
+libtasn1-3					install
+libtext-charwidth-perl				install
+libtext-iconv-perl				install
+libtext-wrapi18n-perl				install
+libtimedate-perl				install
+libtinfo5					install
+libudev0					install
+libusb-0.1-4					install
+libusb-1.0-0					install
+libuuid1					install
+libwind0-heimdal				install
+libwrap0					install
+libx11-6					install
+libx11-data					install
+libxapian22					install
+libxau6						install
+libxcb1						install
+libxdmcp6					install
+libxext6					install
+libxml2						install
+libxmuu1					install
+libyaml-0-2					install
+linux-firmware					install
+linux-headers-3.2.0-59				install
+linux-headers-3.2.0-59-virtual			install
+linux-headers-virtual				install
+linux-image-3.2.0-59-virtual			install
+linux-image-virtual				install
+linux-virtual					install
+locales						install
+lockfile-progs					install
+login						install
+login-duo					install
+logrotate					install
+lsb-base					install
+lsb-release					install
+lshw						install
+lsof						install
+ltrace						install
+makedev						install
+man-db						install
+manpages					install
+mawk						install
+memtest86+					install
+mime-support					install
+mlocate						install
+module-init-tools				install
+mount						install
+mountall					install
+mtr-tiny					install
+multiarch-support				install
+nano						install
+ncurses-base					install
+ncurses-bin					install
+net-tools					install
+netbase						install
+netcat-openbsd					install
+ntfs-3g						install
+ntpdate						install
+openssh-client					install
+openssh-server					install
+openssl						install
+os-prober					install
+parted						install
+passwd						install
+patch						install
+pciutils					install
+perl						install
+perl-base					install
+perl-modules					install
+plymouth					install
+plymouth-theme-ubuntu-text			install
+popularity-contest				install
+powermgmt-base					install
+ppp						install
+pppconfig					install
+pppoeconf					install
+procps						install
+psmisc						install
+python						install
+python-apport					install
+python-apt					install
+python-apt-common				install
+python-boto					install
+python-chardet					install
+python-cheetah					install
+python-configobj				install
+python-crypto					install
+python-dbus					install
+python-dbus-dev					install
+python-debian					install
+python-gdbm					install
+python-gi					install
+python-gnupginterface				install
+python-httplib2					install
+python-keyring					install
+python-launchpadlib				install
+python-lazr.restfulclient			install
+python-lazr.uri					install
+python-m2crypto					install
+python-minimal					install
+python-newt					install
+python-oauth					install
+python-openssl					install
+python-pam					install
+python-paramiko					install
+python-pkg-resources				install
+python-problem-report				install
+python-pycurl					install
+python-serial					install
+python-simplejson				install
+python-software-properties			install
+python-twisted-bin				install
+python-twisted-core				install
+python-twisted-names				install
+python-twisted-web				install
+python-wadllib					install
+python-xapian					install
+python-yaml					install
+python-zope.interface				install
+python2.7					install
+python2.7-minimal				install
+readline-common					install
+resolvconf					install
+rsync						install
+rsyslog						install
+screen						install
+sed						install
+sensible-utils					install
+sgml-base					install
+ssh-import-id					install
+strace						install
+sudo						install
+sysv-rc						install
+sysvinit-utils					install
+tar						install
+tasksel						install
+tasksel-data					install
+tcpd						install
+tcpdump						install
+telnet						install
+time						install
+tmux						install
+tzdata						install
+ubuntu-keyring					install
+ubuntu-minimal					install
+ubuntu-standard					install
+ucf						install
+udev						install
+ufw						install
+unattended-upgrades				install
+update-manager-core				install
+update-notifier-common				install
+upstart						install
+ureadahead					install
+usbutils					install
+util-linux					install
+uuid-runtime					install
+vim						install
+vim-common					install
+vim-runtime					install
+vim-tiny					install
+w3m						install
+wget						install
+whiptail					install
+whoopsie					install
+wireless-regdb					install
+wireless-tools					install
+wpasupplicant					install
+xauth						install
+xkb-data					install
+xml-core					install
+xz-lzma						install
+xz-utils					install
+zlib1g						install
+{code}
+{cloak}
+
+
+h2. 13.10 20140219
+
+||Name|ubuntu-certified-13.10|
+||Description|Ubuntu 13.10 (20140219 64-bit). Certified Ubuntu Server Cloud Image from Canonical.|
+||UUID|{{46407334-9096-40ef-bb72-6f9a094f0507}}|
+
+{note}
+When you use {{sudo}} in this image version, you may see a message like this:
+
+{code:lang=none}
+sudo: unable to resolve host 38210d9f-afcb-6fcd-f73b-b5c3aa4d1881
+{code}
+
+This is a harmless warning that occurs because the host name in {{/etc/hostname}} is set to the UUID of the instance, but there is not corresponding entry in {{/etc/hosts}}. In the Joyent Cloud the default host name for newly-provisioned instances is the UUID of the instance.
+
+There are two ways to remove this warning:
+
+# Give your instance a host name
+# Add an entry in {{/etc/hosts}} like this:
+{code:lang=none}
+127.0.0.1 38210d9f-afcb-6fcd-f73b-b5c3aa4d1881
+{code}
+{note}
+
+
+{code:lang=none}
+$  lsb_release -a
+No LSB modules are available.
+Distributor ID:	Ubuntu
+Description:	Ubuntu 13.10
+Release:	13.10
+Codename:	saucy
+{code}
+
+
+
+h3. What's New in This Image
+
+* Initial Joyent Release
+* [Ubuntu 13.10 Release Notes|https://wiki.ubuntu.com/SaucySalamander/ReleaseNotes]
+
+
+h3. Packages Installed in This Image
+
+{code:lang=none}
+apt						install
+aptitude					install
+bzip2						install
+curl						install
+dpkg						install
+gzip						install
+login-duo					install
+openssl						install
+perl						install
+python						install
+python2.7					install
+python3						install
+python3.3					install
+sudo						install
+wget						install
+{code}
+
+{toggle-cloak:id=ubuntucert1310-20140219}For a detailed list of every package installed with this image, click here.
+{cloak:id=ubuntucert1310-20140219|visible=false}
+{code:lang=none}
+$ dpkg --get-selections
+accountsservice					install
+acpid						install
+adduser						install
+apparmor					install
+apport						install
+apport-symptoms					install
+apt						install
+apt-transport-https				install
+apt-utils					install
+apt-xapian-index				install
+aptitude					install
+aptitude-common					install
+at						install
+base-files					install
+base-passwd					install
+bash						install
+bash-completion					install
+bc						install
+bind9-host					install
+bsdmainutils					install
+bsdutils					install
+busybox-initramfs				install
+busybox-static					install
+byobu						install
+bzip2						install
+ca-certificates					install
+cloud-guest-utils				install
+cloud-init					install
+command-not-found				install
+command-not-found-data				install
+console-setup					install
+coreutils					install
+cpio						install
+cron						install
+cryptsetup					install
+cryptsetup-bin					install
+curl						install
+dash						install
+dbus						install
+debconf						install
+debconf-i18n					install
+debianutils					install
+dh-python					install
+diffutils					install
+dmidecode					install
+dmsetup						install
+dnsutils					install
+dosfstools					install
+dpkg						install
+e2fslibs:amd64					install
+e2fsprogs					install
+ed						install
+eject						install
+ethtool						install
+euca2ools					install
+file						install
+findutils					install
+fonts-ubuntu-font-family-console		install
+friendly-recovery				install
+ftp						install
+fuse						install
+gawk						install
+gcc-4.8-base:amd64				install
+gdisk						install
+geoip-database					install
+gettext-base					install
+gir1.2-glib-2.0					install
+gnupg						install
+gpgv						install
+grep						install
+groff-base					install
+grub-common					install
+grub-gfxpayload-lists				install
+grub-pc						install
+grub-pc-bin					install
+grub2-common					install
+gzip						install
+hdparm						install
+hostname					install
+ifupdown					install
+info						install
+initramfs-tools					install
+initramfs-tools-bin				install
+initscripts					install
+insserv						install
+install-info					install
+iproute2					install
+iptables					install
+iputils-ping					install
+iputils-tracepath				install
+irqbalance					install
+isc-dhcp-client					install
+isc-dhcp-common					install
+iso-codes					install
+joyent-mdata-client				install
+kbd						install
+keyboard-configuration				install
+klibc-utils					install
+kmod						install
+krb5-locales					install
+landscape-client				install
+landscape-common				install
+language-selector-common			install
+laptop-detect					install
+less						install
+libaccountsservice0				install
+libacl1:amd64					install
+libapparmor-perl				install
+libapparmor1					install
+libapt-inst1.5:amd64				install
+libapt-pkg4.12:amd64				install
+libasn1-8-heimdal:amd64				install
+libasprintf0c2:amd64				install
+libattr1:amd64					install
+libaudit-common					install
+libaudit1:amd64					install
+libbind9-90					install
+libblkid1:amd64					install
+libboost-iostreams1.53.0:amd64			install
+libbsd0:amd64					install
+libbz2-1.0:amd64				install
+libc-bin					install
+libc6:amd64					install
+libcap-ng0					install
+libcap2:amd64					install
+libck-connector0:amd64				install
+libclass-accessor-perl				install
+libclass-isa-perl				install
+libcomerr2:amd64				install
+libcryptsetup4					install
+libcurl3:amd64					install
+libcurl3-gnutls:amd64				install
+libcwidget3					install
+libdb5.1:amd64					install
+libdbus-1-3:amd64				install
+libdbus-glib-1-2:amd64				install
+libdevmapper1.02.1:amd64			install
+libdns99					install
+libdrm2:amd64					install
+libduo3:amd64					install
+libedit2:amd64					install
+libelf1:amd64					install
+libept1.4.12					install
+libevent-2.0-5:amd64				install
+libexpat1:amd64					install
+libffi6:amd64					install
+libfreetype6:amd64				install
+libfribidi0:amd64				install
+libfuse2:amd64					install
+libgc1c2:amd64					install
+libgcc1:amd64					install
+libgck-1-0:amd64				install
+libgcr-3-common					install
+libgcr-base-3-1:amd64				install
+libgcrypt11:amd64				install
+libgdbm3:amd64					install
+libgeoip1:amd64					install
+libgirepository-1.0-1				install
+libglib2.0-0:amd64				install
+libglib2.0-data					install
+libgnutls-openssl27:amd64			install
+libgnutls26:amd64				install
+libgpg-error0:amd64				install
+libgpm2:amd64					install
+libgssapi-krb5-2:amd64				install
+libgssapi3-heimdal:amd64			install
+libhcrypto4-heimdal:amd64			install
+libheimbase1-heimdal:amd64			install
+libheimntlm0-heimdal:amd64			install
+libhx509-5-heimdal:amd64			install
+libicu48:amd64					install
+libidn11:amd64					install
+libio-string-perl				install
+libisc95					install
+libisccc90					install
+libisccfg90					install
+libiw30:amd64					install
+libjson-c2:amd64				install
+libjson0:amd64					install
+libk5crypto3:amd64				install
+libkeyutils1:amd64				install
+libklibc					install
+libkmod2:amd64					install
+libkrb5-26-heimdal:amd64			install
+libkrb5-3:amd64					install
+libkrb5support0:amd64				install
+libldap-2.4-2:amd64				install
+liblocale-gettext-perl				install
+liblockfile-bin					install
+liblockfile1:amd64				install
+liblwres90					install
+liblzma5:amd64					install
+libmagic1:amd64					install
+libmount1:amd64					install
+libncurses5:amd64				install
+libncursesw5:amd64				install
+libnewt0.52:amd64				install
+libnfnetlink0:amd64				install
+libnih-dbus1:amd64				install
+libnih1:amd64					install
+libnl-3-200:amd64				install
+libnl-genl-3-200:amd64				install
+libnuma1					install
+libp11-kit0:amd64				install
+libpam-modules:amd64				install
+libpam-modules-bin				install
+libpam-runtime					install
+libpam-systemd:amd64				install
+libpam0g:amd64					install
+libparse-debianchangelog-perl			install
+libparted0debian1:amd64				install
+libpcap0.8:amd64				install
+libpci3:amd64					install
+libpcre3:amd64					install
+libpcsclite1:amd64				install
+libpipeline1:amd64				install
+libplymouth2:amd64				install
+libpng12-0:amd64				install
+libpolkit-agent-1-0:amd64			install
+libpolkit-backend-1-0:amd64			install
+libpolkit-gobject-1-0:amd64			install
+libpopt0:amd64					install
+libprocps0:amd64				install
+libpython-stdlib:amd64				install
+libpython2.7:amd64				install
+libpython2.7-minimal:amd64			install
+libpython2.7-stdlib:amd64			install
+libpython3-stdlib:amd64				install
+libpython3.3-minimal:amd64			install
+libpython3.3-stdlib:amd64			install
+libreadline5:amd64				install
+libreadline6:amd64				install
+libroken18-heimdal:amd64			install
+librtmp0:amd64					install
+libsasl2-2:amd64				install
+libsasl2-modules:amd64				install
+libsasl2-modules-db:amd64			install
+libselinux1:amd64				install
+libsemanage-common				install
+libsemanage1:amd64				install
+libsepol1:amd64					install
+libsigc++-2.0-0c2a:amd64			install
+libsigsegv2:amd64				install
+libslang2:amd64					install
+libsqlite3-0:amd64				install
+libss2:amd64					install
+libssl1.0.0:amd64				install
+libstdc++6:amd64				install
+libsub-name-perl				install
+libswitch-perl					install
+libsystemd-daemon0:amd64			install
+libsystemd-login0:amd64				install
+libtasn1-3:amd64				install
+libtext-charwidth-perl				install
+libtext-iconv-perl				install
+libtext-wrapi18n-perl				install
+libtimedate-perl				install
+libtinfo5:amd64					install
+libudev1:amd64					install
+libusb-0.1-4:amd64				install
+libusb-1.0-0:amd64				install
+libustr-1.0-1:amd64				install
+libuuid1:amd64					install
+libwhoopsie0					install
+libwind0-heimdal:amd64				install
+libwrap0:amd64					install
+libx11-6:amd64					install
+libx11-data					install
+libxapian22					install
+libxau6:amd64					install
+libxcb1:amd64					install
+libxdmcp6:amd64					install
+libxext6:amd64					install
+libxml2:amd64					install
+libxmuu1:amd64					install
+libxtables10					install
+libyaml-0-2:amd64				install
+linux-headers-3.11.0-15				install
+linux-headers-3.11.0-15-generic			install
+linux-headers-generic				install
+linux-headers-virtual				install
+linux-image-3.11.0-15-generic			install
+linux-image-virtual				install
+linux-virtual					install
+locales						install
+lockfile-progs					install
+login						install
+login-duo					install
+logrotate					install
+lsb-base					install
+lsb-release					install
+lshw						install
+lsof						install
+ltrace						install
+makedev						install
+man-db						install
+manpages					install
+mawk						install
+memtest86+					install
+mime-support					install
+mlocate						install
+module-init-tools				install
+mount						install
+mountall					install
+mtr-tiny					install
+multiarch-support				install
+nano						install
+ncurses-base					install
+ncurses-bin					install
+ncurses-term					install
+net-tools					install
+netbase						install
+netcat-openbsd					install
+ntfs-3g						install
+ntpdate						install
+openssh-client					install
+openssh-server					install
+openssl						install
+os-prober					install
+overlayroot					install
+parted						install
+passwd						install
+patch						install
+pciutils					install
+perl						install
+perl-base					install
+perl-modules					install
+plymouth					install
+plymouth-theme-ubuntu-text			install
+policykit-1					install
+popularity-contest				install
+powermgmt-base					install
+ppp						install
+pppconfig					install
+pppoeconf					install
+procps						install
+psmisc						install
+python						install
+python-apt					install
+python-apt-common				install
+python-boto					install
+python-chardet					install
+python-cheetah					install
+python-configobj				install
+python-debian					install
+python-gdbm					install
+python-json-patch				install
+python-json-pointer				install
+python-m2crypto					install
+python-minimal					install
+python-newt					install
+python-oauth					install
+python-openssl					install
+python-pam					install
+python-pkg-resources				install
+python-prettytable				install
+python-pycurl					install
+python-requests					install
+python-serial					install
+python-six					install
+python-twisted-bin				install
+python-twisted-core				install
+python-twisted-names				install
+python-twisted-web				install
+python-urllib3					install
+python-xapian					install
+python-yaml					install
+python-zope.interface				install
+python2.7					install
+python2.7-minimal				install
+python3						install
+python3-apport					install
+python3-apt					install
+python3-commandnotfound				install
+python3-dbus					install
+python3-distupgrade				install
+python3-gdbm:amd64				install
+python3-gi					install
+python3-minimal					install
+python3-problem-report				install
+python3-software-properties			install
+python3-update-manager				install
+python3.3					install
+python3.3-minimal				install
+readline-common					install
+resolvconf					install
+rsync						install
+rsyslog						install
+screen						install
+sed						install
+sensible-utils					install
+sgml-base					install
+shared-mime-info				install
+software-properties-common			install
+ssh-import-id					install
+strace						install
+sudo						install
+systemd-services				install
+systemd-shim					install
+sysv-rc						install
+sysvinit-utils					install
+tar						install
+tasksel						install
+tasksel-data					install
+tcpd						install
+tcpdump						install
+telnet						install
+time						install
+tmux						install
+tzdata						install
+ubuntu-keyring					install
+ubuntu-minimal					install
+ubuntu-release-upgrader-core			install
+ubuntu-standard					install
+ucf						install
+udev						install
+ufw						install
+unattended-upgrades				install
+update-manager-core				install
+update-notifier-common				install
+upstart						install
+ureadahead					install
+usbutils					install
+util-linux					install
+uuid-runtime					install
+vim						install
+vim-common					install
+vim-runtime					install
+vim-tiny					install
+w3m						install
+wget						install
+whiptail					install
+whoopsie					install
+wireless-tools					install
+wpasupplicant					install
+xauth						install
+xkb-data					install
+xml-core					install
+xz-utils					install
+zlib1g:amd64					install
+{code}
+{cloak}
+
+
+h2. 12.04 20140219
+
+||Name|ubuntu-certified-12.04|
+||Description|Ubuntu 12.04.4 LTS (20140219 64-bit). Certified Ubuntu Server Cloud Image from Canonical.|
+||UUID|{{a0b441cc-22ac-40c8-a21f-345b734444ec}}|
+
+{note}
+When you use {{sudo}} in this image version, you may see a message like this:
+
+{code:lang=none}
+sudo: unable to resolve host 38210d9f-afcb-6fcd-f73b-b5c3aa4d1881
+{code}
+
+This is a harmless warning that occurs because the host name in {{/etc/hostname}} is set to the UUID of the instance, but there is not corresponding entry in {{/etc/hosts}}. In the Joyent Cloud the default host name for newly-provisioned instances is the UUID of the instance.
+
+There are two ways to remove this warning:
+
+# Give your instance a host name
+# Add an entry in {{/etc/hosts}} like this:
+{code:lang=none}
+127.0.0.1 38210d9f-afcb-6fcd-f73b-b5c3aa4d1881
+{code}
+{note}
+
+
+{code:lang=none}
+$ lsb_release -a
+No LSB modules are available.
+Distributor ID:	Ubuntu
+Description:	Ubuntu 12.04.4 LTS
+Release:	12.04
+Codename:	precise
+{code}
+
+
+
+h3. What's New in This Image
+
+* Initial Joyent Release
+* [Ubuntu 12.04 LTS Release Notes|https://wiki.ubuntu.com/PrecisePangolin/ReleaseNotes/12.04]
+
+
+h3. Packages Installed in This Image
+
+{code:lang=none}
+apt
+aptitude
+bash
+bzip2
+curl
+dpkg
+gzip
+login-duo
+openssl
+perl
+python
+sudo
+wget
+{code}
+
+{toggle-cloak:id=ubuntucert1204-20140219}For a detailed list of every package installed with this image, click here.
+{cloak:id=ubuntucert1204-20140219|visible=false}
+{code:lang=none}
+$ dpkg --get-selections
+accountsservice					install
+acpid						install
+adduser						install
+apparmor					install
+apport						install
+apport-symptoms					install
+apt						install
+apt-transport-https				install
+apt-utils					install
+apt-xapian-index				install
+aptitude					install
+at						install
+base-files					install
+base-passwd					install
+bash						install
+bash-completion					install
+bc						install
+bind9-host					install
+bsdmainutils					install
+bsdutils					install
+busybox-initramfs				install
+busybox-static					install
+byobu						install
+bzip2						install
+ca-certificates					install
+cloud-init					install
+cloud-initramfs-growroot			install
+cloud-initramfs-rescuevol			install
+cloud-utils					install
+command-not-found				install
+command-not-found-data				install
+console-setup					install
+coreutils					install
+cpio						install
+crda						install
+cron						install
+curl						install
+dash						install
+dbus						install
+debconf						install
+debconf-i18n					install
+debianutils					install
+diffutils					install
+dmidecode					install
+dmsetup						install
+dnsutils					install
+dosfstools					install
+dpkg						install
+e2fslibs					install
+e2fsprogs					install
+ed						install
+eject						install
+euca2ools					install
+file						install
+findutils					install
+fonts-ubuntu-font-family-console		install
+friendly-recovery				install
+ftp						install
+fuse						install
+gcc-4.6-base					install
+geoip-database					install
+gettext-base					install
+gir1.2-glib-2.0					install
+gnupg						install
+gpgv						install
+grep						install
+groff-base					install
+grub-common					install
+grub-gfxpayload-lists				install
+grub-pc						install
+grub-pc-bin					install
+grub2-common					install
+gzip						install
+hdparm						install
+hostname					install
+ifupdown					install
+info						install
+initramfs-tools					install
+initramfs-tools-bin				install
+initscripts					install
+insserv						install
+install-info					install
+iproute						install
+iptables					install
+iputils-ping					install
+iputils-tracepath				install
+irqbalance					install
+isc-dhcp-client					install
+isc-dhcp-common					install
+iso-codes					install
+iw						install
+joyent-mdata-client				install
+kbd						install
+keyboard-configuration				install
+klibc-utils					install
+krb5-locales					install
+landscape-client				install
+landscape-common				install
+language-selector-common			install
+laptop-detect					install
+less						install
+libaccountsservice0				install
+libacl1						install
+libapt-inst1.4					install
+libapt-pkg4.12					install
+libasn1-8-heimdal				install
+libattr1					install
+libbind9-80					install
+libblkid1					install
+libboost-iostreams1.46.1			install
+libbsd0						install
+libbz2-1.0					install
+libc-bin					install
+libc6						install
+libcap-ng0					install
+libclass-accessor-perl				install
+libclass-isa-perl				install
+libcomerr2					install
+libcurl3					install
+libcurl3-gnutls					install
+libcwidget3					install
+libdb5.1					install
+libdbus-1-3					install
+libdbus-glib-1-2				install
+libdevmapper1.02.1				install
+libdns81					install
+libdrm-intel1					install
+libdrm-nouveau1a				install
+libdrm-radeon1					install
+libdrm2						install
+libduo3						install
+libedit2					install
+libelf1						install
+libept1.4.12					install
+libevent-2.0-5					install
+libexpat1					install
+libffi6						install
+libfreetype6					install
+libfribidi0					install
+libfuse2					install
+libgc1c2					install
+libgcc1						install
+libgcrypt11					install
+libgdbm3					install
+libgeoip1					install
+libgirepository-1.0-1				install
+libglib2.0-0					install
+libgmp10					install
+libgnutls26					install
+libgpg-error0					install
+libgpm2						install
+libgssapi-krb5-2				install
+libgssapi3-heimdal				install
+libhcrypto4-heimdal				install
+libheimbase1-heimdal				install
+libheimntlm0-heimdal				install
+libhx509-5-heimdal				install
+libidn11					install
+libio-string-perl				install
+libisc83					install
+libisccc80					install
+libisccfg82					install
+libiw30						install
+libjs-jquery					install
+libk5crypto3					install
+libkeyutils1					install
+libklibc					install
+libkrb5-26-heimdal				install
+libkrb5-3					install
+libkrb5support0					install
+libldap-2.4-2					install
+liblocale-gettext-perl				install
+liblockfile-bin					install
+liblockfile1					install
+liblwres80					install
+liblzma5					install
+libmagic1					install
+libmount1					install
+libncurses5					install
+libncursesw5					install
+libnewt0.52					install
+libnfnetlink0					install
+libnih-dbus1					install
+libnih1						install
+libnl-3-200					install
+libnl-genl-3-200				install
+libp11-kit0					install
+libpam-modules					install
+libpam-modules-bin				install
+libpam-runtime					install
+libpam0g					install
+libparse-debianchangelog-perl			install
+libparted0debian1				install
+libpcap0.8					install
+libpci3						install
+libpciaccess0					install
+libpcre3					install
+libpcsclite1					install
+libpipeline1					install
+libplymouth2					install
+libpng12-0					install
+libpolkit-gobject-1-0				install
+libpopt0					install
+libpython2.7					install
+libreadline6					install
+libroken18-heimdal				install
+librtmp0					install
+libsasl2-2					install
+libsasl2-modules				install
+libselinux1					install
+libsigc++-2.0-0c2a				install
+libslang2					install
+libsqlite3-0					install
+libss2						install
+libssl1.0.0					install
+libstdc++6					install
+libsub-name-perl				install
+libswitch-perl					install
+libtasn1-3					install
+libtext-charwidth-perl				install
+libtext-iconv-perl				install
+libtext-wrapi18n-perl				install
+libtimedate-perl				install
+libtinfo5					install
+libudev0					install
+libusb-0.1-4					install
+libusb-1.0-0					install
+libuuid1					install
+libwind0-heimdal				install
+libwrap0					install
+libx11-6					install
+libx11-data					install
+libxapian22					install
+libxau6						install
+libxcb1						install
+libxdmcp6					install
+libxext6					install
+libxml2						install
+libxmuu1					install
+libyaml-0-2					install
+linux-firmware					install
+linux-headers-3.2.0-58				install
+linux-headers-3.2.0-58-virtual			install
+linux-headers-virtual				install
+linux-image-3.2.0-58-virtual			install
+linux-image-virtual				install
+linux-virtual					install
+locales						install
+lockfile-progs					install
+login						install
+login-duo					install
+logrotate					install
+lsb-base					install
+lsb-release					install
+lshw						install
+lsof						install
+ltrace						install
+makedev						install
+man-db						install
+manpages					install
+mawk						install
+memtest86+					install
+mime-support					install
+mlocate						install
+module-init-tools				install
+mount						install
+mountall					install
+mtr-tiny					install
+multiarch-support				install
+nano						install
+ncurses-base					install
+ncurses-bin					install
+net-tools					install
+netbase						install
+netcat-openbsd					install
+ntfs-3g						install
+ntpdate						install
+openssh-client					install
+openssh-server					install
+openssl						install
+os-prober					install
+parted						install
+passwd						install
+patch						install
+pciutils					install
+perl						install
+perl-base					install
+perl-modules					install
+plymouth					install
+plymouth-theme-ubuntu-text			install
+popularity-contest				install
+powermgmt-base					install
+ppp						install
+pppconfig					install
+pppoeconf					install
+procps						install
+psmisc						install
+python						install
+python-apport					install
+python-apt					install
+python-apt-common				install
+python-boto					install
+python-chardet					install
+python-cheetah					install
+python-configobj				install
+python-crypto					install
+python-dbus					install
+python-dbus-dev					install
+python-debian					install
+python-gdbm					install
+python-gi					install
+python-gnupginterface				install
+python-httplib2					install
+python-keyring					install
+python-launchpadlib				install
+python-lazr.restfulclient			install
+python-lazr.uri					install
+python-m2crypto					install
+python-minimal					install
+python-newt					install
+python-oauth					install
+python-openssl					install
+python-pam					install
+python-paramiko					install
+python-pkg-resources				install
+python-problem-report				install
+python-pycurl					install
+python-serial					install
+python-simplejson				install
+python-software-properties			install
+python-twisted-bin				install
+python-twisted-core				install
+python-twisted-names				install
+python-twisted-web				install
+python-wadllib					install
+python-xapian					install
+python-yaml					install
+python-zope.interface				install
+python2.7					install
+python2.7-minimal				install
+readline-common					install
+resolvconf					install
+rsync						install
+rsyslog						install
+screen						install
+sed						install
+sensible-utils					install
+sgml-base					install
+ssh-import-id					install
+strace						install
+sudo						install
+sysv-rc						install
+sysvinit-utils					install
+tar						install
+tasksel						install
+tasksel-data					install
+tcpd						install
+tcpdump						install
+telnet						install
+time						install
+tmux						install
+tzdata						install
+ubuntu-keyring					install
+ubuntu-minimal					install
+ubuntu-standard					install
+ucf						install
+udev						install
+ufw						install
+unattended-upgrades				install
+update-manager-core				install
+update-notifier-common				install
+upstart						install
+ureadahead					install
+usbutils					install
+util-linux					install
+uuid-runtime					install
+vim						install
+vim-common					install
+vim-runtime					install
+vim-tiny					install
+w3m						install
+wget						install
+whiptail					install
+whoopsie					install
+wireless-regdb					install
+wireless-tools					install
+wpasupplicant					install
+xauth						install
+xkb-data					install
+xml-core					install
+xz-lzma						install
+xz-utils					install
+zlib1g						install
+{code}
+{cloak}

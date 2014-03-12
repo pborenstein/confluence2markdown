@@ -1,0 +1,298 @@
+The Cloud Firewall rules apply to all instances in the same datacenter that have the Cloud Firewall feature enabled. Adding, updating, or deleting rules apply immediately to all such instances.
+
+
+{toc}
+
+h1. The Default Rules
+
+The default Cloud Firewall rules block all incoming traffic and allow all outgoing traffic. Traffic to ICMP type 8 code 0 (ping) is always allowed.
+
+
+* FROM any to all vms BLOCK TCP PORT all
+* FROM any to all vms BLOCK UDP PORT all
+* FROM any to all vms BLOCK ICMP (TYPE 0 AND TYPE 1 AND ... TYPE 255)
+* FROM all vms to any ALLOW TCP PORT all
+* FROM all vms to any ALLOW UDP PORT all
+* FROM any to all vms ALLOW ICMP TYPE 8 CODE 0
+
+
+
+h1. Specifying Rules
+
+If you are using the CloudAPI command line tools, use the {{sdc-createfirewallrule}} command:
+
+{code:lang=none}
+$ sdc-createfirewallrule --rule "from any to tag www allow tcp (port 80 and port 443)"
+{
+  "id": "28cabe50-73c8-4443-b499-46ac4de3dc0d",
+  "rule": "FROM any TO tag www ALLOW tcp (PORT 80 AND PORT 443)",
+  "enabled": false
+}
+{code}
+
+Note that every rule has a unique id. Use this id to work with the rule later.
+
+Use the {{--enabled}} option to create the rule and enable it immediately. You can also use {{sdc-enablefirewallrule}}. Use {{sdc-disablefirewallrule}} to disable a rule.
+
+{code:lang=none}
+$ sdc-enablefirewallrule 28cabe50-73c8-4443-b499-46ac4de3dc0d
+{
+  "id": "28cabe50-73c8-4443-b499-46ac4de3dc0d",
+  "rule": "FROM any TO tag www ALLOW tcp (PORT 80 AND PORT 443)",
+  "enabled": true
+}
+{code}
+
+If you are using CloudAPI directly, you specify the rule using a JSON payload like this:
+
+{code:lang=none}
+{
+    "rule": "FROM any TO all vms ALLOW tcp port 22",
+    "enabled": true,
+}
+{code}
+
+The properties of this payload are:
+
+|| Property || Description ||
+|  rule     | The rule written according to the rule syntax described below. |
+|  enabled  | Whether the rule is enabled ({{true}}) or disabled ({{false}}) |
+
+
+h1. Cloud Firewall Rule Syntax
+
+The following sections provide syntax diagrams and examples for Cloud Firewall Rules.
+
+
+h2. rule
+
+!rule.png!
+{code:lang=none}
+rule     ::= 'FROM' target_list 'TO' target_list action protocol
+{code}
+
+Block or allow traffic ({{action}}) from  {{target_list}} to {{target_list}} on the given {{protocol}}
+
+
+h2. target_list
+
+!target_list.png!
+
+{code:lang=none}
+target_list
+         ::= 'ANY'
+           | 'ALL VMS'
+           | '(' target ( 'OR' target )* ')'
+           | target
+{code}
+
+|| Term    || Meaning ||
+| ANY      | Any machine anywhere on the Internet |
+| ALL VMS  | All instances on this datacenter that have the Cloud Firewall feature enabled. |
+
+*Examples*
+
+* Allow HTTPS traffic from any machine on the Internet to all instances in this datacenter.
+{code:lang=none}
+FROM any TO all vms ALLOW tcp port 80
+{code}
+* Allow SSH traffic between all instances in this datacenter.
+{code:lang=none}
+FROM all vms TO all vms ALLOW tcp port 22
+{code}
+
+Note that {{all vms}} means every instances in the datacenter in which the rule is defined _that has the Cloud Firewall feature enabled_.
+
+
+
+
+h2. target
+
+!target.png!
+
+{code:lang=none}
+target   ::= 'IP ADDRESS'
+           | 'SUBNET'
+           | 'TAG' tag_string
+           | 'TAG' tag_string '=' tag_value
+           | 'VM' uuid
+
+{code}
+
+|| Term      || Meaning ||
+| IP ADDRESS | An IPv4 address: nnn.nnn.nnn.nnn |
+| SUBNET     | An IPv4 CIDR subnet nnn.nnn.nnn.nnn/mm |
+| TAG tag_string  | Any instance in this datacenter that has the Cloud Firewall feature enabled and that has the tag {{tag_string}} |
+| TAG tag_string = tag_value | Any instance in this datacenter that has the Cloud Firewall feature enabled and that has the tag {{tag_string}} with the value {{tag_value}} |
+| VM uuid | The instance whose ID is UUID. The instance must be on this datacenter and have the Cloud Firewall feature enabled. |
+
+
+*Examples*
+* Do not allow SMTP (port 25) traffic to an instance with the IP 10.2.0.1 from any of the instances on the same datacenter that  have the Cloud Firewall feature enabled.
+{code:lang=none}
+FROM all vms to ip 10.2.0.1 BLOCK tcp port 25
+{code}
+* Allow HTTPS (port 443) from a private subnet to a specific instance.
+{code:lang=none}
+FROM subnet 10.8.0.0/16 TO vm 0f570678-c007-4610-a2c0-bbfcaab9f4e6 ALLOW tcp port 443
+{code}
+* Allow syslog (port 514) traffic from any instance in this datacenter to any instance in this datacenter that has the tag {{syslog}}.
+{code:lang=none}
+FROM all vms TO tag syslog ALLOW udp port 514
+{code}
+* Allow database traffic from databases to webservers. Any other instances with different {{role}} tags, such as {{role = staging}} are not affected by this rule.
+{code:lang=none}
+FROM tag role = db TO tag role = www ALLOW tcp port 5432
+{code}
+* Allow LDAP (port 389) traffic from any instance in this datacenter to instances with tag {{VM type}} set to {{LDAP server}}.
+{code:lang=none}
+FROM all vms TO tag "VM type" = "LDAP server" ALLOW tcp PORT 389
+{code}
+* Allow only HTTP traffic from any machine on the Internet to a specific instance.
+{code:lang=none}
+FROM any to vm 04128191-d2cb-43fc-a970-e4deefe970d8 ALLOW tcp port 80
+{code}
+
+
+
+h2. action
+
+!action.png!
+{code:lang=none}
+action   ::= 'BLOCK'
+           | 'ALLOW'
+
+{code}
+
+|| Term || Meaning ||
+| BLOCK | Do not allow traffic. |
+| ALLOW | Allow traffic. |
+
+
+Actions can be one of ALLOW or BLOCK.  Note that certain combinations of
+actions and directions have no effect:
+
+* Since the default rule set blocks all incoming ports, this rule doesn't
+have an effect on any instance.
+{code:lang=none}
+FROM any TO all vms BLOCK tcp port 143
+{code}
+* Since the default policy allows all outbound traffic, this rule has no effect.
+{code:lang=none}
+FROM all vms TO any ALLOW tcp port 25
+{code}
+
+
+
+h2. protocol
+
+
+!protocol.png!
+
+{code:lang=none}
+protocol ::= 'TCP' port_list
+           | 'UDP' port_list
+           | 'ICMP' type_list
+
+{code}
+
+|| Term          || Meaning ||
+| TCP port_list  | Rule applies to TCP traffic for given ports. |
+| UDP port_list  | Rule applies to UDP traffic for given ports |
+| ICMP type_list | Rule refers to ICMP traffic for given types and codes. |
+
+For TCP and UDP, this specifies the port numbers that the rule applies to.
+Port numbers must be between 1 and 65535, inclusive.
+
+For ICMP, this specifies the ICMP type and optional code that the rule
+applies to.  Types and codes must be between 0 and 255, inclusive.
+
+
+*Examples:*
+
+* Allows HTTP and HTTPS traffic from any IP to all webservers.
+{code:lang=none}
+FROM tag www TO any ALLOW TCP (port 80 AND port 443)
+{code}
+* Allows pinging all instances in the datacenter. This is a default rule.
+{code:lang=none}
+FROM any TO all vms ALLOW icmp TYPE 8 CODE 0
+{code}
+* Block outgoing ping replies from all instances in the datacenter.
+{code:lang=none}
+FROM all vms TO any BLOCK icmp TYPE 0
+{code}
+
+h2. port_list
+
+
+!port_list.png!
+
+{code:lang=none}
+port_list
+         ::= '(' port ( 'AND' port )* ')'
+           | port
+           | '(' 'PORT ALL' ')'
+           | 'PORT ALL'
+
+{code}
+
+|| Term    || Meaning ||
+| PORT ALL | All TCP or UDP ports: 1 - 65535 |
+| port |    A single TCP or UDP port: 1 - 65535 |
+
+
+h2. port
+
+
+!port.png!
+
+{code:lang=none}
+port     ::= 'PORT' 1 - 65535
+{code}
+
+|| Term    || Meaning ||
+| PORT nnn | A TCP or UDP port number in the range 1 - 65535. |
+
+h2. type_list
+
+
+!type_list.png!
+
+{code:lang=none}
+type_list
+         ::= '(' type ( 'AND' type )* ')'
+           | type
+
+{code}
+
+
+
+h2. type
+
+
+!type.png!
+
+{code:lang=none}
+type     ::= 'TYPE' 0 - 255 'CODE' 0 - 255
+           | 'TYPE' 0 - 255
+
+{code}
+
+|| Term             || Meaning ||
+| TYPE nnn CODE mmm | ICMP traffic of type nnn and code mmm |
+| TYPE nnn          | ICMP traffic of type nnn and any code |
+
+TYPE and CODE both range from 0 to 255.
+
+
+
+h1. Error Messages
+
+Some rules cannot be created because they would not affect any instances in the datacenter. The following rules would result in a "rule does not affect VMs" error messages.
+
+{code:lang=none}
+FROM any TO any ALLOW tcp port 22
+
+FROM ip 192.168.1.3 TO subnet 192.168.1.0/24 ALLOW tcp port 22
+{code}

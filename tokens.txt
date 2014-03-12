@@ -1,0 +1,22 @@
+{code:lang=none}    start code block
+<do not interpret anything here>
+{code}              end code block
+
+
+{toc}             toc
+
+{{stuff}}         <code>stuff</code>
+
+|| table head ||  table head |
+|  fo | foo |
+
+
+\\ = <BR>
+
+
+* as first non-blank = *
+**  = <sp><sp>*
+
+# as first nonblank = 1.
+## = <sp><sp>1.
+
