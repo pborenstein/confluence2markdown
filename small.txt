@@ -1,0 +1,10 @@
+If you are using the CloudAPI command line tools, use the {{sdc-createfirewallrule}} command:
+
+{code:lang=none}
+$ sdc-createfirewallrule --rule "from any to tag www allow tcp (port 80 and port 443)"
+{
+  "id": "28cabe50-73c8-4443-b499-46ac4de3dc0d",
+  "rule": "FROM any TO tag www ALLOW tcp (PORT 80 AND PORT 443)",
+  "enabled": false
+}
+{code}
