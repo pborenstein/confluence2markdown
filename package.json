@@ -13,6 +13,6 @@
   "author": "Philip Borenstein",
   "license": "MIT",
   "dependencies": {
-    "tokenizer": "^1.1.2"
+    "tokenizer": "pborenstein/node-tokenizer"
   }
 }
