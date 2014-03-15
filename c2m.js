@@ -2,6 +2,21 @@ var stream    = require('stream');
 var util      = require('util');
 var Tokenizer = require('tokenizer');
 
+//  Some confluence macros are paired
+//    and some are not.
+var macros = {
+  'include'           : 'single',
+  'toc'               : 'single',
+  'children'          : 'single',
+  'composition-setup' : 'single',
+  'toggle-cloak'      : 'single',
+  'code'              : 'paired',
+  'note'              : 'paired',
+  'cloak'             : 'paired'
+}
+
+
+
 
 function Confluence2Markdown() {
   stream.Transform.call(this, { objectMode: true });
