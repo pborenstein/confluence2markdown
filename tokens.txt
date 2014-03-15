@@ -10,8 +10,13 @@
 || table head ||  table head |
 |  fo | foo |
 
+Escaping\-things
 
 \\ = <BR>
+
+(something in parens)
+
+!picture.jpg!
 
 
 * as first non-blank = *
