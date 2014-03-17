@@ -39,11 +39,22 @@ util.inherits(Confluence2Markdown, stream.Transform);
 //  Convert Confluence markup to Markdown one token at a time
 
 Confluence2Markdown.prototype._transform = function(token, encoding, done) {
-  var outText;
   var s = this._state; // make things easier to type
+  var outText = token.content;  // by default, we output what we get
 
-  if (s.verbatim && token.type !== s.verbatim) {
-    outText = token.content;
+  if (s.verbatim) {
+    if (token.type !== s.verbatim) {
+      outText = token.content;
+    } else {    // we're looking at the closing token
+      outText = '```\n';
+      s.verbatim = false;
+    }
+  } else {
+    if (token.type === 'code' || token.type === 'noformat') {
+      s.verbatim = token.type;    // store the token type here
+      outText = '\n```'
+    }
+
   }
 
 
