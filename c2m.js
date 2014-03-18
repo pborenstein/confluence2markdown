@@ -28,7 +28,10 @@ var substitutions = {
     'bullet'            : '*  ',
     'number'            : '1.  ',
     'mono'              : '`',
-    'break'             : '<BR/>'
+    'break'             : '<BR/>',
+    'table'             : '|',
+    'tablemark'         : '| :-- ',
+    'tablemarkend'      : '|\n'
 
 }
 
@@ -41,9 +44,10 @@ function Confluence2Markdown() {
     stream.Transform.call(this, { objectMode: true });
 
     this._state = {
-        verbatim    : false,
+        verbatim    : false,    // Holds the close tag
         bold        : false,
-        italic      : false
+        italic      : false,
+        tcellcount  : false     // Also lets us know number of cells
     };
 
     this._macro = '';
@@ -73,6 +77,15 @@ Confluence2Markdown.prototype._transform = function(token, encoding, done) {
             // newline cancels stuff
             s.bold = false;
             s.italic = false;
+
+            if (s.tcellcount) {
+                outText = '\n';
+                for (var i = 0; i < s.tcellcount-1; i++) {
+                    outText += substitutions['tablemark'];
+                }
+                outText += substitutions['tablemarkend'];
+                s.tcellcount = false;
+            }
         } else if (t.type === 'code' || t.type === 'noformat') {
           s.verbatim = t.type;    // store the token type here
           outText = substitutions['startfence'];
@@ -101,9 +114,10 @@ Confluence2Markdown.prototype._transform = function(token, encoding, done) {
             outText += substitutions['mono'];
         } else if (t.type === 'break') {
             outText = substitutions['break'];
+        } else if (t.type === 'dpipe') {
+            s.tcellcount++;             // lets us know to put the marker after newline
+            outText = substitutions['table'];
         }
-
-
       }
 
 
