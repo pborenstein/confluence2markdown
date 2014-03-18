@@ -26,7 +26,9 @@ var substitutions = {
     'italic'            : '_',
     'tab'               : '    ', // 4 spaces are magic to Markdown
     'bullet'            : '*  ',
-    'number'            : '1.  '
+    'number'            : '1.  ',
+    'mono'              : '`',
+    'break'             : '<BR/>'
 
 }
 
@@ -93,6 +95,12 @@ Confluence2Markdown.prototype._transform = function(token, encoding, done) {
         } else if (t.type === 'under') {
             outText = substitutions['italic'];
             s.italic = ! s.italic;
+        } else if (t.type === 'mono') {
+            outText = substitutions['mono'];
+            outText += t.content.slice(2, -2);
+            outText += substitutions['mono'];
+        } else if (t.type === 'break') {
+            outText = substitutions['break'];
         }
 
 
