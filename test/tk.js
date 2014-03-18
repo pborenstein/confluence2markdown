@@ -1,6 +1,6 @@
 var stream    = require('stream');
 var util      = require('util');
-var Tokenizer = require('./lib/ConfluenceTokenizer.js');
+var Tokenizer = require('../lib/ConfluenceTokenizer.js');
 
 var debug = true;
 
