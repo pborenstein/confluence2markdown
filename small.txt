@@ -1,7 +1,6 @@
 If you are using the *CloudAPI* _command line_ *tools*, use _the_ {{sdc-createfirewallrule}} command:
 
-| &nbsp;     | Joyent-supplied | Canonical-supplied |
-|:- | :- | :- |
+|| &nbsp;     || Joyent-supplied || Canonical-supplied ||
 | *Default user* |  root   |  ubuntu    |
 | *Disk layout*  | {{/tmp}} on separate partition \\ {{/data}} is the mount point for the ephemeral device \\ staticaly configured fstab | {{/tmp}} on rootfs \\ {{/mnt}} is the mount point for the ephemeral device \\ dynamic mounts |
 | *Boot-time setup* | {{user-script}} metadata | [cloud-init|http://cloudinit.readthedocs.org/en/latest/] |
