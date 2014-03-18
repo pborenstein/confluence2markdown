@@ -31,13 +31,24 @@ var substitutions = {
     'break'             : '<BR/>',
     'table'             : '|',
     'tablemark'         : '| :-- ',
-    'tablemarkend'      : '|\n'
+    'tablemarkend'      : '|\n',
+    'newline'           : '\n'
 
 }
 
 
 
 tokenizer = new Tokenizer();
+
+
+// Repeat a character count times.
+function _repeatChar (c, count) {
+    return Array(count+1).join(c);
+}
+
+function _numNewlines (txt) {
+    return txt.match(/\n/g).length
+}
 
 
 function Confluence2Markdown() {
@@ -77,9 +88,12 @@ Confluence2Markdown.prototype._transform = function(token, encoding, done) {
             // newline cancels stuff
             s.bold = false;
             s.italic = false;
+                // normalize line endings (CRLF? Really?)
+
+            outText = _repeatChar(substitutions['newline'], _numNewlines(t.content));
+
 
             if (s.tcellcount) {
-                outText = '\n';
                 for (var i = 0; i < s.tcellcount-1; i++) {
                     outText += substitutions['tablemark'];
                 }
@@ -90,11 +104,12 @@ Confluence2Markdown.prototype._transform = function(token, encoding, done) {
           s.verbatim = t.type;    // store the token type here
           outText = substitutions['startfence'];
         } else if (t.type === 'heading')  {
-            outText = Array(parseInt(t.content[1])+1).join('#');
+            outText = _repeatChar('#', parseInt(t.content[1]));
             // TODO anchors
         } else if (t.type === 'bulletlist' && s.bold) {
             // not really a bullet, but the end of bold with a space
             outText = substitutions['bold'] + ' ';
+            outText += _repeatChar(substitutions['newline'], _numNewlines(t.content));
             s.bold = false
         } else if (t.type === 'bulletlist' || t.type === 'numberlist') {
             outText = '';
