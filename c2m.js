@@ -47,7 +47,9 @@ function _repeatChar (c, count) {
 }
 
 function _numNewlines (txt) {
-    return txt.match(/\n/g).length
+    var m = txt.match(/\n/g);
+
+    return m ? m.length : 0;
 }
 
 
@@ -88,10 +90,9 @@ Confluence2Markdown.prototype._transform = function(token, encoding, done) {
             // newline cancels stuff
             s.bold = false;
             s.italic = false;
-                // normalize line endings (CRLF? Really?)
 
+            // normalize line endings (CRLF? Really?)
             outText = _repeatChar(substitutions['newline'], _numNewlines(t.content));
-
 
             if (s.tcellcount) {
                 for (var i = 0; i < s.tcellcount-1; i++) {
