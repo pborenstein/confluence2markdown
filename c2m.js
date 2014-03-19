@@ -75,11 +75,12 @@ util.inherits(Confluence2Markdown, stream.Transform);
 Confluence2Markdown.prototype._transform = function(token, encoding, done) {
     var s = this._state; // make things easier to type
     var t = token;
-    outText = token.content;
+    outText = t.content;
 
     if (s.verbatim) {
         if (t.type !== s.verbatim) {
-            outText = t.content;
+            // verbatim, but strip out \r's
+            outText = t.content.replace(/\r/g,'');
         } else {
             // we're looking at the closing token
             outText = substitutions['endfence'];
