@@ -7,6 +7,14 @@ If you are using the *CloudAPI* _command line_ *tools*, use _the_ {{sdc-createfi
 | *Kernel*      | Locked | Uses stock Ubuntu virtual kernel |
 
 
+Odd table:
+
+||Name|ubuntu-certified-13.10|
+||Description|Ubuntu 13.10 (20140227 64-bit). Certified Ubuntu Server Cloud Image from Canonical.|
+||UUID|{{049dfe64-6c37-4b88-8e89-4b8aa0f129f2}}|
+
+
+
 
 {code:lang=none}
 $ sdc-createfirewallrule --rule "from any to tag www allow tcp (port 80 and port 443)"

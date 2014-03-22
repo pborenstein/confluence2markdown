@@ -8,7 +8,9 @@ Convert Confluence (3.5 and earlier) markup to Markdown.
 *   {code} and {noformat} blocks
 *   Lists (bullets and numbers)
 *   {{monospace}}
-*   Tables
+*   Tables (some weird cases don't work)
+*   Paired macros (note, info, writersnote, etc)
+    These a rendered as HTML DIVs
 
 
 ## Still to do:

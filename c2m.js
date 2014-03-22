@@ -2,22 +2,40 @@ var stream    = require('stream');
 var util      = require('util');
 var Tokenizer = require('./lib/ConfluenceTokenizer.js');
 
-//  Some confluence macros are paired
-//    and some are not.
-//    paired macros of different types can nest inside each other
-//    verbatim macros are paired but cannot nest
-var macros = {
-    'include'           : 'single',
-    'toc'               : 'single',
-    'children'          : 'single',
-    'composition-setup' : 'single',
-    'toggle-cloak'      : 'single',
-    'note'              : 'paired',
-    'cloak'             : 'paired',
-    'writersnote'       : 'paired',
-    'code'              : 'verbatim',
-    'noformat'          : 'verbatim'
+
+//  These are the paired macros.
+//  Value of the macro is
+//      false if we're not in the macro
+//      true if we are in the macro
+//  'foo' in paired ? the  macro is in this object : it's not
+//  pairSubst() outputs the substitution for the macro
+
+var paired = {
+    'box'           : false,
+    'cloak'         : false,
+    'column'        : false,
+    'info'          : false,
+    'note'          : false,
+    'panel'         : false,
+    'section'       : false,
+    'tip'           : false,
+    'warning'       : false,
+    'writersnote'   : false,
 }
+
+
+//  Output DIVs for paired macros.
+//  The 'markdown="1"' attribute ensures that Markdown inside
+//      the DIV gets interpreted as Markdown.
+
+function _pairSubst(macrotxt, open) {
+    if (open)
+        return '<div markdown="1" class="confluence ' + macrotxt + '">';
+    else
+        return ('</div>');
+}
+
+
 
 var substitutions = {
     'startfence'        : '\n```',
@@ -52,6 +70,11 @@ function _numNewlines (txt) {
     return m ? m.length : 0;
 }
 
+function _macroName (tokentext) {
+  var matches = tokentext.match(/{([^:\}]+)/);
+  return matches[1];
+}
+
 
 function Confluence2Markdown() {
     stream.Transform.call(this, { objectMode: true });
@@ -63,7 +86,6 @@ function Confluence2Markdown() {
         tcellcount  : false     // Also lets us know number of cells
     };
 
-    this._macro = '';
     this._prevToken = { content: '', type: 'whitespace'};
 
 }
@@ -96,7 +118,8 @@ Confluence2Markdown.prototype._transform = function(token, encoding, done) {
             outText = _repeatChar(substitutions['newline'], _numNewlines(t.content));
 
             if (s.tcellcount) {
-                for (var i = 0; i < s.tcellcount-1; i++) {
+                //console.log(')) tcellcount: %d', s.tcellcount);
+                for (var i = 0; i < s.tcellcount; i++) {
                     outText += substitutions['tablemark'];
                 }
                 outText += substitutions['tablemarkend'];
@@ -134,6 +157,13 @@ Confluence2Markdown.prototype._transform = function(token, encoding, done) {
         } else if (t.type === 'dpipe') {
             s.tcellcount++;             // lets us know to put the marker after newline
             outText = substitutions['table'];
+        } else if (t.type === 'macro') {
+            var macroname = _macroName(t.content);
+
+            if (macroname in paired) {
+                paired[macroname] = !paired[macroname];
+                outText = _pairSubst(macroname, paired[macroname]);
+            }
         }
       }
 
