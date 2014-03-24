@@ -1,0 +1,67 @@
+{section}
+{column:width=65%}
+
+You can use PuTTY to generate your SmartMachine SSH key. PuTTY is a free open-source terminal emulator that functions much like the Terminal application in Mac OS X in a Windows environment. If you prefer a command line approach to SSH, you can use [Cygwin|http://www.cygwin.com/] to emulate a Linux-like environment on your Windows machine.
+
+
+*In this topic:*
+{toc}
+{column}
+{column}
+{box:aag|At a Glance}
+This topic shows you how to manually generate and upload an SSH key when working with PuTTY in the Windows environment.
+{box}
+{column}
+{section}
+
+h1. About PuTTY
+
+PuTTY is an SSH client for Windows that you will use to generate your SSH keys. You can download PuTTY from [http://www.chiark.greenend.org.uk/~sgtatham/putty/].
+
+When you install the PuTTY client, you also install the PuTTYgen utility. PuTTYgen is what you will use to generate your SSH key for a Windows VM.
+
+{note}
+This page gives you basic information about using PuTTY and PuTTYgen to log in to your provisioned machine. For more information on PuTTY, see the official&nbsp;[PuTTY documentation|http://www.chiark.greenend.org.uk/~sgtatham/putty/docs.html].
+{note}
+
+
+h1. Generating an SSH Key
+
+To generate an SSH key with PuTTYgen, follow these steps:
+
+# Open the PuTTYgen program.
+# For *Type of key to generate*, select&nbsp;*SSH-2 RSA*.
+# Click the *Generate* button.
+# Move your mouse in the area below the progress bar. When the progress bar is full, PuTTYgen generates your key pair.
+# Type a passphrase in the *Key passphrase* field. Type the same passphrase in the *Confirm passphrase* field. You can use a key without a passphrase, but this is not recommended.
+# Click the *Save private key* button to save the private key.
+{note}
+You *must* save the private key. You will need it to connect to your machine.
+{note}
+# Right-click in the text field labeled *Public key for pasting into OpenSSH authorized_keys file* and choose *Select All*.
+# Right-click again in the same text field and choose *Copy*.
+
+!puttygengenerated2.png!
+
+h1. Uploading an SSH Key
+
+Now you need to upload the copied SSH key to your Cloud Management portal.
+
+# After you copy the SSH key to the clipboard, return to the Cloud Management portal.
+# In the&nbsp;*SSH Key* field, paste your SSH key.
+# In the *Name* field, provide a name for the key. {info}Providing a key name is optional but is a good practice for ease of management.{info}
+# Click the *Add this key* button. See below.
+&nbsp;
+!portal-manual-add-ssh-win.png!
+
+{note}
+PuTTY and OpenSSH use different formats of public SSH keys. If the text you pasted in the *SSH Key* starts with {{---- BEGIN SSH2 PUBLIC KEY}}, it is in the wrong format. Be sure to follow the instructions carefully. Your key should start with {{ssh-rsa AAAA...}}.
+{note}
+
+Once you upload your SSH key to the portal, you can [connect to your virtual machine|jpc2:Connecting to Your Machine from Windows] through a PuTTY session.
+
+
+
+h1. What is my next step?
+
+The final step is to [provision a machine|jpc2:Provisioning a Machine] and start using the Joyent Public Cloud\!
