@@ -2,8 +2,8 @@
 
 var stream    = require('stream');
 var util      = require('util');
-var Tokenizer = require('./lib/ConfluenceTokenizer.js');
-var Confluence2Markdown = require('./lib/Confluence2Markdown')
+var Tokenizer = require('../lib/ConfluenceTokenizer.js');
+var Confluence2Markdown = require('../lib/Confluence2Markdown')
 
 
 
