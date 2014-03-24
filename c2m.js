@@ -3,26 +3,6 @@ var util      = require('util');
 var Tokenizer = require('./lib/ConfluenceTokenizer.js');
 
 
-//  These are the paired macros.
-//  Value of the macro is
-//      false if we're not in the macro
-//      true if we are in the macro
-//  'foo' in paired ? the  macro is in this object : it's not
-//  pairSubst() outputs the substitution for the macro
-
-var paired = {
-    'box'           : false,
-    'cloak'         : false,
-    'column'        : false,
-    'info'          : false,
-    'note'          : false,
-    'panel'         : false,
-    'section'       : false,
-    'tip'           : false,
-    'warning'       : false,
-    'writersnote'   : false,
-}
-
 
 //  Output DIVs for paired macros.
 //  The 'markdown="1"' attribute ensures that Markdown inside
@@ -83,7 +63,25 @@ function Confluence2Markdown() {
         verbatim    : false,    // Holds the close tag
         bold        : false,
         italic      : false,
-        tcellcount  : false     // Also lets us know number of cells
+        tcellcount  : false,     // Also lets us know number of cells
+        //  These are the paired macros.
+        //  Value of the macro is
+        //      false if we're not in the macro
+        //      true if we are in the macro
+        //  'foo' in paired ? the  macro is in this object : it's not
+        //  pairSubst() outputs the substitution for the macro
+        paired      : {
+            'box'           : false,
+            'cloak'         : false,
+            'column'        : false,
+            'info'          : false,
+            'note'          : false,
+            'panel'         : false,
+            'section'       : false,
+            'tip'           : false,
+            'warning'       : false,
+            'writersnote'   : false,
+        }
     };
 
     this._prevToken = { content: '', type: 'whitespace'};
@@ -160,9 +158,9 @@ Confluence2Markdown.prototype._transform = function(token, encoding, done) {
         } else if (t.type === 'macro') {
             var macroname = _macroName(t.content);
 
-            if (macroname in paired) {
-                paired[macroname] = !paired[macroname];
-                outText = _pairSubst(macroname, paired[macroname]);
+            if (macroname in s.paired) {
+                s.paired[macroname] = !s.paired[macroname];
+                outText = _pairSubst(macroname, s.paired[macroname]);
             }
         }
       }
