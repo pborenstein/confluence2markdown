@@ -2,6 +2,13 @@
 
 Convert Confluence (3.5 and earlier) markup to Markdown.
 
+## Overview
+
+```
+$ npm install -g confluence2markdown
+$ c2m < confluence.txt > markdown.md
+```
+
 
 ## What it handles:
 
@@ -19,11 +26,8 @@ Convert Confluence (3.5 and earlier) markup to Markdown.
 * Images
 * Anchors for headings
 * TOC generation
-* Make this a proper npm package
 
 ## Notes
 
 This converter uses [a fork](https://github.com/pborenstein/node-tokenizer)
 of Florent Jaby's [node-tokenizer](https://github.com/Floby/node-tokenizer).
-
-`npm install` should load my fork.
