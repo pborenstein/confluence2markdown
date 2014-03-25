@@ -1,3 +1,5 @@
+#! /usr/bin/env node
+
 var stream    = require('stream');
 var util      = require('util');
 var Tokenizer = require('../lib/ConfluenceTokenizer.js');
