@@ -18,12 +18,12 @@ $ c2m < confluence.txt > markdown.md
 *   Tables (some weird cases don't work)
 *   Paired macros (note, info, writersnote, etc)
     These a rendered as HTML DIVs
+*   Links & Images
+    Pass either 'md' or 'kirby' to constructor to specify flavor of links.
 
 
 ## Still to do:
 
-* Links
-* Images
 * Anchors for headings
 * TOC generation
 
